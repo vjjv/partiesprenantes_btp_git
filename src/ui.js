@@ -15,6 +15,23 @@ export class UIManager {
     this.isRecording = false
     this.longPressDuration = 400 // ms
 
+    // Validate mode settings
+    if (!Settings.config.photoMode && !Settings.config.videoMode) {
+      console.error("Both photoMode and videoMode are disabled. At least one must be enabled.")
+      // Enable both as fallback
+      Settings.config.photoMode = true
+      Settings.config.videoMode = true
+    }
+
+    // Log current mode configuration
+    if (Settings.config.photoMode && Settings.config.videoMode) {
+      console.log("UI Mode: Photo + Video (tap for photo, long press for video)")
+    } else if (Settings.config.photoMode && !Settings.config.videoMode) {
+      console.log("UI Mode: Photo only (tap for photo)")
+    } else if (!Settings.config.photoMode && Settings.config.videoMode) {
+      console.log("UI Mode: Video only (long press for video)")
+    }
+
     // Remove any existing click listeners (main.js should not add its own)
     this.recordButton.onclick = null
     this.recordButton.onmousedown = null
@@ -35,11 +52,19 @@ export class UIManager {
   _handlePressStart(e) {
     if (this.isRecording) return
     e.preventDefault()
+    
+    // Check if video mode is enabled before setting up long press
+    if (!Settings.config.videoMode) {
+      // Only photo mode enabled - no long press animation needed
+      return
+    }
+    
     // Animate outline scale up and reduce opacity for visual feedback during long press
-  this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
-  this.recordOutline.style.transformOrigin = 'center center'
-  this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
-  this.recordOutline.style.opacity = '0.5'
+    this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
+    this.recordOutline.style.transformOrigin = 'center center'
+    this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
+    this.recordOutline.style.opacity = '0.5'
+    
     this.longPressTimeout = setTimeout(() => {
       this.isRecording = true
       this.updateRecordButtonState(true)
@@ -50,28 +75,46 @@ export class UIManager {
 
   _handlePressEnd(e) {
     e.preventDefault()
-    // Revert outline animation
-  this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
-  this.recordOutline.style.opacity = '1'
-    if (this.longPressTimeout) {
+    
+    // Revert outline animation (only if video mode was enabled)
+    if (Settings.config.videoMode) {
+      this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
+      this.recordOutline.style.opacity = '1'
+    }
+    
+    // Handle based on current mode settings
+    if (Settings.config.videoMode && this.longPressTimeout) {
+      // Video mode is enabled, handle long press logic
       clearTimeout(this.longPressTimeout)
       this.longPressTimeout = null
       if (!this.isRecording) {
-        // Tap: take photo
-        this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
+        // Tap: take photo (only if photo mode is also enabled)
+        if (Settings.config.photoMode) {
+          this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
+        }
       } else {
         // End recording
         this.isRecording = false
         this.updateRecordButtonState(false)
         this.recordButton.dispatchEvent(new CustomEvent('record-stop', {bubbles:true}))
       }
+    } else if (Settings.config.photoMode && !Settings.config.videoMode) {
+      // Only photo mode enabled - immediate photo capture
+      this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
+    } else if (!Settings.config.photoMode && Settings.config.videoMode) {
+      // Only video mode enabled - this shouldn't happen in _handlePressEnd without long press
+      // but handle it gracefully by doing nothing
+      console.log('Video-only mode: use long press to record')
     }
   }
 
   _handlePressCancel(e) {
-    // Revert outline animation
-  this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
-  this.recordOutline.style.opacity = '1'
+    // Revert outline animation (only if video mode was enabled)
+    if (Settings.config.videoMode) {
+      this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
+      this.recordOutline.style.opacity = '1'
+    }
+    
     if (this.longPressTimeout) {
       clearTimeout(this.longPressTimeout)
       this.longPressTimeout = null
@@ -207,7 +250,7 @@ export class UIManager {
     // Add white text below the video preview
     let previewText = document.createElement("div")
     previewText.id = "preview-lorem"
-    previewText.innerHTML = `Download you photo and share! Tag us on Instagram<br>@altrarunning @experienceanewhigh`
+    previewText.innerHTML = ``
     previewText.style = `
       position: fixed;
       left: 0;
@@ -272,7 +315,7 @@ export class UIManager {
         margin: 0 auto;
         border-radius: 50px;
         background: black;
-        border: 8px solid white;
+        border: 0px solid white;
       `
       container.appendChild(preview)
     } else {
@@ -293,7 +336,7 @@ export class UIManager {
         margin: 0 auto;
         border-radius: 50px;
         background: black;
-        border: 8px solid white;
+        border: 0px solid white;
       `
       container.appendChild(preview)
       // Add error handling for video load/playback
@@ -338,5 +381,87 @@ export class UIManager {
     } else {
       console.log("No preview to remove")
     }
+  }
+
+  // Generate QR code using a simple API
+  generateQRCode(text, size = 200) {
+    // Using QR Server API to generate QR codes
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`
+  }
+
+  // Show desktop overlay
+  showDesktopOverlay() {
+    // Create the overlay
+    const overlay = document.createElement('div')
+    overlay.id = 'desktop-overlay'
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #2196F3;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `
+
+    // Create the text
+    const text = document.createElement('h1')
+    text.textContent = 'Open this link on mobile to start'
+    text.style.cssText = `
+      font-size: 3rem;
+      font-weight: 600;
+      margin: 0 0 2rem 0;
+      text-align: center;
+      max-width: 80%;
+    `
+
+    // Create QR code container
+    const qrContainer = document.createElement('div')
+    qrContainer.style.cssText = `
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    `
+
+    // Create QR code image
+    const qrCode = document.createElement('img')
+    const currentUrl = window.location.href
+    qrCode.src = this.generateQRCode(currentUrl, 300)
+    qrCode.alt = 'QR Code to open on mobile'
+    qrCode.style.cssText = `
+      display: block;
+      width: 300px;
+      height: 300px;
+    `
+
+    // Create URL text below QR code
+    const urlText = document.createElement('p')
+    urlText.textContent = currentUrl
+    urlText.style.cssText = `
+      font-size: 1rem;
+      margin: 1rem 0 0 0;
+      text-align: center;
+      word-break: break-all;
+      max-width: 80%;
+    `
+
+    // Assemble the overlay
+    qrContainer.appendChild(qrCode)
+    overlay.appendChild(text)
+    overlay.appendChild(qrContainer)
+    overlay.appendChild(urlText)
+
+    // Add to document
+    document.body.appendChild(overlay)
+
+    // Hide other UI elements
+    document.body.style.overflow = 'hidden'
   }
 }
