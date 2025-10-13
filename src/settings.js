@@ -12,7 +12,7 @@ export const Settings = {
     remoteAPISpecId: "YOUR_REMOTE_API_SPEC_ID_HERE", // From my lenses API section
     useRemoteAPI: false, // Set to true to enable using remote API
     photoMode: true,
-    videoMode: false,
+    videoMode: true,
   },
   // Camera settings
   camera: {

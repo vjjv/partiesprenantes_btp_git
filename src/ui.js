@@ -32,6 +32,13 @@ export class UIManager {
       console.log("UI Mode: Video only (long press for video)")
     }
 
+    // Hide record button initially and show after 10 seconds
+    this.toggleRecordButton(false)
+    setTimeout(() => {
+      this.toggleRecordButton(true)
+      console.log("Record button is now visible")
+    }, 13000) // 10 seconds
+
     // Remove any existing click listeners (main.js should not add its own)
     this.recordButton.onclick = null
     this.recordButton.onmousedown = null
@@ -215,7 +222,7 @@ export class UIManager {
           await navigator.share({
             files: [file],
             title: isImage ? "Photo" : "Recorded Video",
-            text: isImage ? "Check out this photo!" : "Check out this recording!",
+            text: isImage ? "Toi aussi deviens un pro de la construction !" : "Toi aussi deviens un pro de la construction !",
           })
           console.log("File shared successfully")
         } else {
