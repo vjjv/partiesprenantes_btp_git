@@ -56,9 +56,9 @@ const Settings = {
     outputFileName: "recording.mp4",
     recordVideoBitsPerSecond: 2500000,
     recordAudioBitsPerSecond: 128000,
-    recordLensAudio: true,
+    recordLensAudio: false,
     recordMicAudio: true,
-    recordCaptureRenderTarget: false,
+    recordCaptureRenderTarget: true,
   },
 
   // FFmpeg settings
