@@ -12,7 +12,7 @@ export const Settings = {
     remoteAPISpecId: "YOUR_REMOTE_API_SPEC_ID_HERE", // From my lenses API section
     useRemoteAPI: false, // Set to true to enable using remote API
     photoMode: true,
-    videoMode: true,
+    videoMode: false,
   },
   // Camera settings
   camera: {
@@ -48,7 +48,7 @@ export const Settings = {
     recordAudioBitsPerSecond: 128000,
     recordLensAudio: false,
     recordMicAudio: true,
-    recordCaptureRenderTarget: true,
+    recordCaptureRenderTarget: false,
   },
 
   // FFmpeg settings

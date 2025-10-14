@@ -94,11 +94,18 @@ export class UIManager {
         window.getSelection().removeAllRanges()
       }
     }
+    
+    // Check if video mode is enabled before setting up long press
+    if (!Settings.config.videoMode) {
+      // Only photo mode enabled - no long press animation or timeout
+      return
+    }
+    
     // Animate outline scale up and reduce opacity for visual feedback during long press
-  this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
-  this.recordOutline.style.transformOrigin = 'center center'
-  this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
-  this.recordOutline.style.opacity = '0.5'
+    this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
+    this.recordOutline.style.transformOrigin = 'center center'
+    this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
+    this.recordOutline.style.opacity = '0.5'
     this.longPressTimeout = setTimeout(() => {
       this.isRecording = true
       this.updateRecordButtonState(true)
@@ -114,21 +121,30 @@ export class UIManager {
     // Clean up context menu prevention
     document.removeEventListener('contextmenu', this._preventContextMenu)
     
-    // Revert outline animation
-  this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
-  this.recordOutline.style.opacity = '1'
+    // Revert outline animation (only if video mode was enabled)
+    if (Settings.config.videoMode) {
+      this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
+      this.recordOutline.style.opacity = '1'
+    }
+    
     if (this.longPressTimeout) {
+      // Video mode enabled - handle long press logic
       clearTimeout(this.longPressTimeout)
       this.longPressTimeout = null
       if (!this.isRecording) {
-        // Tap: take photo
-        this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
+        // Tap: take photo (only if photo mode is also enabled)
+        if (Settings.config.photoMode) {
+          this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
+        }
       } else {
         // End recording
         this.isRecording = false
         this.updateRecordButtonState(false)
         this.recordButton.dispatchEvent(new CustomEvent('record-stop', {bubbles:true}))
       }
+    } else if (Settings.config.photoMode && !Settings.config.videoMode) {
+      // Only photo mode enabled - immediate photo capture on tap
+      this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
     }
   }
 
