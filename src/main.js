@@ -191,14 +191,14 @@ if (isDesktop()) {
   // --- New event listeners for tap/long-press ---
   // Photo capture (tap)
   uiManager.recordButton.addEventListener("photo-capture", async () => {
-    // Take a photo from the live video (canvas)
-    // Use the current liveRenderTarget canvas
+    // Take a photo from the live video (canvas) - simple and reliable
     const canvas = document.createElement('canvas')
     canvas.width = liveRenderTarget.width
     canvas.height = liveRenderTarget.height
     const ctx = canvas.getContext('2d')
     ctx.drawImage(liveRenderTarget, 0, 0, canvas.width, canvas.height)
     const dataURL = canvas.toDataURL('image/png')
+    
     // Convert dataURL to Blob for download/share
     function dataURLtoBlob(dataurl) {
       const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n)
@@ -206,6 +206,7 @@ if (isDesktop()) {
       return new Blob([u8arr], { type: mime })
     }
     const photoBlob = dataURLtoBlob(dataURL)
+    
     // Show the photo in the same preview as video, with share/download/back buttons
     uiManager.displayPostRecordButtons(dataURL, photoBlob)
     // Hide record button

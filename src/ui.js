@@ -15,30 +15,6 @@ export class UIManager {
     this.isRecording = false
     this.longPressDuration = 400 // ms
 
-    // Validate mode settings
-    if (!Settings.config.photoMode && !Settings.config.videoMode) {
-      console.error("Both photoMode and videoMode are disabled. At least one must be enabled.")
-      // Enable both as fallback
-      Settings.config.photoMode = true
-      Settings.config.videoMode = true
-    }
-
-    // Log current mode configuration
-    if (Settings.config.photoMode && Settings.config.videoMode) {
-      console.log("UI Mode: Photo + Video (tap for photo, long press for video)")
-    } else if (Settings.config.photoMode && !Settings.config.videoMode) {
-      console.log("UI Mode: Photo only (tap for photo)")
-    } else if (!Settings.config.photoMode && Settings.config.videoMode) {
-      console.log("UI Mode: Video only (long press for video)")
-    }
-
-    // Hide record button initially and show after 10 seconds
-    this.toggleRecordButton(false)
-    setTimeout(() => {
-      this.toggleRecordButton(true)
-      console.log("Record button is now visible")
-    }, 13000) // 10 seconds
-
     // Remove any existing click listeners (main.js should not add its own)
     this.recordButton.onclick = null
     this.recordButton.onmousedown = null
@@ -46,32 +22,83 @@ export class UIManager {
     this.recordButton.ontouchstart = null
     this.recordButton.ontouchend = null
 
+    // Prevent context menu on long press (Chrome save image behavior)
+    this.recordButton.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      return false
+    })
+    
+    // Prevent drag and select behaviors
+    this.recordButton.addEventListener('dragstart', (e) => {
+      e.preventDefault()
+      return false
+    })
+    this.recordButton.addEventListener('selectstart', (e) => {
+      e.preventDefault()
+      return false
+    })
+    
+    // Set CSS properties to prevent dragging and selection
+    this.recordButton.style.userSelect = 'none'
+    this.recordButton.style.webkitUserSelect = 'none'
+    this.recordButton.style.mozUserSelect = 'none'
+    this.recordButton.style.msUserSelect = 'none'
+    this.recordButton.style.webkitTouchCallout = 'none'
+    this.recordButton.style.webkitUserDrag = 'none'
+    this.recordButton.style.webkitTapHighlightColor = 'transparent'
+    this.recordButton.draggable = false
+    
     // Mouse events
     this.recordButton.addEventListener('mousedown', (e) => this._handlePressStart(e))
     this.recordButton.addEventListener('mouseup', (e) => this._handlePressEnd(e))
     this.recordButton.addEventListener('mouseleave', (e) => this._handlePressCancel(e))
     // Touch events
-    this.recordButton.addEventListener('touchstart', (e) => this._handlePressStart(e))
-    this.recordButton.addEventListener('touchend', (e) => this._handlePressEnd(e))
-    this.recordButton.addEventListener('touchcancel', (e) => this._handlePressCancel(e))
+    this.recordButton.addEventListener('touchstart', (e) => this._handlePressStart(e), { passive: false })
+    this.recordButton.addEventListener('touchend', (e) => this._handlePressEnd(e), { passive: false })
+    this.recordButton.addEventListener('touchcancel', (e) => this._handlePressCancel(e), { passive: false })
+    
+    // Bind the context menu prevention method
+    this._preventContextMenu = this._preventContextMenu.bind(this)
+    
+    // Hide record button initially and show after 13 seconds
+    this.toggleRecordButton(false)
+    setTimeout(() => {
+      this.toggleRecordButton(true)
+      console.log("Record button is now visible after 13 seconds")
+    }, 13000) // 13 seconds
+  }
+  
+  _preventContextMenu(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    return false
   }
 
   _handlePressStart(e) {
     if (this.isRecording) return
     e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
     
-    // Check if video mode is enabled before setting up long press
-    if (!Settings.config.videoMode) {
-      // Only photo mode enabled - no long press animation needed
-      return
+    // Prevent any default behaviors (drag, context menu, etc.)
+    if (e.type === 'mousedown') {
+      e.target.ondragstart = () => false
     }
     
+    // For iOS, prevent long press context menu with additional techniques
+    if (e.type === 'touchstart') {
+      // Prevent iOS callout/context menu
+      document.addEventListener('contextmenu', this._preventContextMenu, { passive: false, once: true })
+      // Clear any existing selection
+      if (window.getSelection) {
+        window.getSelection().removeAllRanges()
+      }
+    }
     // Animate outline scale up and reduce opacity for visual feedback during long press
-    this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
-    this.recordOutline.style.transformOrigin = 'center center'
-    this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
-    this.recordOutline.style.opacity = '0.5'
-    
+  this.recordOutline.style.transition = 'transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s cubic-bezier(0.4,0,0.2,1)'
+  this.recordOutline.style.transformOrigin = 'center center'
+  this.recordOutline.style.transform = 'translateX(-50%) scale(1.3)'
+  this.recordOutline.style.opacity = '0.5'
     this.longPressTimeout = setTimeout(() => {
       this.isRecording = true
       this.updateRecordButtonState(true)
@@ -82,46 +109,36 @@ export class UIManager {
 
   _handlePressEnd(e) {
     e.preventDefault()
+    e.stopPropagation()
     
-    // Revert outline animation (only if video mode was enabled)
-    if (Settings.config.videoMode) {
-      this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
-      this.recordOutline.style.opacity = '1'
-    }
+    // Clean up context menu prevention
+    document.removeEventListener('contextmenu', this._preventContextMenu)
     
-    // Handle based on current mode settings
-    if (Settings.config.videoMode && this.longPressTimeout) {
-      // Video mode is enabled, handle long press logic
+    // Revert outline animation
+  this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
+  this.recordOutline.style.opacity = '1'
+    if (this.longPressTimeout) {
       clearTimeout(this.longPressTimeout)
       this.longPressTimeout = null
       if (!this.isRecording) {
-        // Tap: take photo (only if photo mode is also enabled)
-        if (Settings.config.photoMode) {
-          this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
-        }
+        // Tap: take photo
+        this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
       } else {
         // End recording
         this.isRecording = false
         this.updateRecordButtonState(false)
         this.recordButton.dispatchEvent(new CustomEvent('record-stop', {bubbles:true}))
       }
-    } else if (Settings.config.photoMode && !Settings.config.videoMode) {
-      // Only photo mode enabled - immediate photo capture
-      this.recordButton.dispatchEvent(new CustomEvent('photo-capture', {bubbles:true}))
-    } else if (!Settings.config.photoMode && Settings.config.videoMode) {
-      // Only video mode enabled - this shouldn't happen in _handlePressEnd without long press
-      // but handle it gracefully by doing nothing
-      console.log('Video-only mode: use long press to record')
     }
   }
 
   _handlePressCancel(e) {
-    // Revert outline animation (only if video mode was enabled)
-    if (Settings.config.videoMode) {
-      this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
-      this.recordOutline.style.opacity = '1'
-    }
+    // Clean up context menu prevention
+    document.removeEventListener('contextmenu', this._preventContextMenu)
     
+    // Revert outline animation
+  this.recordOutline.style.transform = 'translateX(-50%) scale(1)'
+  this.recordOutline.style.opacity = '1'
     if (this.longPressTimeout) {
       clearTimeout(this.longPressTimeout)
       this.longPressTimeout = null
@@ -156,24 +173,41 @@ export class UIManager {
 
   displayPostRecordButtons(url, fixedBlob) {
     // Device detection
-    const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    const isAndroid = /Android/i.test(navigator.userAgent)
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    const isDesktop = !isAndroid && !isIOS
+    
     const shareButton = document.getElementById("share-button")
     const downloadButton = document.getElementById("download-button")
+    
     if (shareButton && downloadButton) {
-      if (isMobileOrTablet) {
+      if (isAndroid) {
+        // Android: show both buttons
+        shareButton.style.display = "inline-block"
+        downloadButton.style.display = "inline-block"
+        // Position buttons side by side
+        shareButton.style.position = "absolute"
+        shareButton.style.transform = "translateX(-50%)"
+        shareButton.style.left = "60%"
+        downloadButton.style.position = "absolute"
+        downloadButton.style.transform = "translateX(-50%)"
+        downloadButton.style.left = "40%"
+      } else if (isIOS) {
+        // iOS: only share button
         shareButton.style.display = "inline-block"
         downloadButton.style.display = "none"
+        shareButton.style.position = "absolute"
+        shareButton.style.transform = "translateX(-50%)"
+        shareButton.style.left = "50%"
       } else {
+        // Desktop: only download button
         shareButton.style.display = "none"
         downloadButton.style.display = "inline-block"
+        downloadButton.style.position = "absolute"
+        downloadButton.style.transform = "translateX(-50%)"
+        downloadButton.style.left = "50%"
       }
     }
-    shareButton.style.position = "absolute"
-    shareButton.style.transform = "translateX(-50%)"
-    shareButton.style.left = "50%"
-    downloadButton.style.position = "absolute"
-    downloadButton.style.transform = "translateX(-50%)"
-    downloadButton.style.left = "50%"
 
     // Move the back button directly into the action-buttons container
     const actionButtons = document.getElementById("action-buttons")
@@ -222,7 +256,7 @@ export class UIManager {
           await navigator.share({
             files: [file],
             title: isImage ? "Photo" : "Recorded Video",
-            text: isImage ? "Toi aussi deviens un pro de la construction !" : "Toi aussi deviens un pro de la construction !",
+            text: isImage ? "Check out this photo!" : "Check out this recording!",
           })
           console.log("File shared successfully")
         } else {
@@ -257,7 +291,7 @@ export class UIManager {
     // Add white text below the video preview
     let previewText = document.createElement("div")
     previewText.id = "preview-lorem"
-    previewText.innerHTML = ``
+    previewText.innerHTML = `Télécharge ou partage ta photo!`
     previewText.style = `
       position: fixed;
       left: 0;
@@ -322,7 +356,7 @@ export class UIManager {
         margin: 0 auto;
         border-radius: 50px;
         background: black;
-        border: 0px solid white;
+        border: 8px solid white;
       `
       container.appendChild(preview)
     } else {
@@ -336,6 +370,9 @@ export class UIManager {
       preview.playsInline = true
       preview.muted = false // Allow audio to play
       preview.volume = 1.0
+      // Remove fullscreen and picture-in-picture buttons
+      preview.disablePictureInPicture = true
+      preview.controlsList = "nofullscreen"
       preview.style = `
         display: block;
         max-width: 98%;
@@ -343,7 +380,7 @@ export class UIManager {
         margin: 0 auto;
         border-radius: 50px;
         background: black;
-        border: 0px solid white;
+        border: 8px solid white;
       `
       container.appendChild(preview)
       // Add error handling for video load/playback
@@ -388,87 +425,5 @@ export class UIManager {
     } else {
       console.log("No preview to remove")
     }
-  }
-
-  // Generate QR code using a simple API
-  generateQRCode(text, size = 200) {
-    // Using QR Server API to generate QR codes
-    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`
-  }
-
-  // Show desktop overlay
-  showDesktopOverlay() {
-    // Create the overlay
-    const overlay = document.createElement('div')
-    overlay.id = 'desktop-overlay'
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: #2196F3;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `
-
-    // Create the text
-    const text = document.createElement('h1')
-    text.textContent = 'Open this link on mobile to start'
-    text.style.cssText = `
-      font-size: 3rem;
-      font-weight: 600;
-      margin: 0 0 2rem 0;
-      text-align: center;
-      max-width: 80%;
-    `
-
-    // Create QR code container
-    const qrContainer = document.createElement('div')
-    qrContainer.style.cssText = `
-      background: white;
-      padding: 2rem;
-      border-radius: 1rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-    `
-
-    // Create QR code image
-    const qrCode = document.createElement('img')
-    const currentUrl = window.location.href
-    qrCode.src = this.generateQRCode(currentUrl, 300)
-    qrCode.alt = 'QR Code to open on mobile'
-    qrCode.style.cssText = `
-      display: block;
-      width: 300px;
-      height: 300px;
-    `
-
-    // Create URL text below QR code
-    const urlText = document.createElement('p')
-    urlText.textContent = currentUrl
-    urlText.style.cssText = `
-      font-size: 1rem;
-      margin: 1rem 0 0 0;
-      text-align: center;
-      word-break: break-all;
-      max-width: 80%;
-    `
-
-    // Assemble the overlay
-    qrContainer.appendChild(qrCode)
-    overlay.appendChild(text)
-    overlay.appendChild(qrContainer)
-    overlay.appendChild(urlText)
-
-    // Add to document
-    document.body.appendChild(overlay)
-
-    // Hide other UI elements
-    document.body.style.overflow = 'hidden'
   }
 }
