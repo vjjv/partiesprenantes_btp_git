@@ -272,7 +272,7 @@ export class UIManager {
           await navigator.share({
             files: [file],
             title: isImage ? "Photo" : "Recorded Video",
-            text: isImage ? "Check out this photo!" : "Check out this recording!",
+            text: isImage ? "Toi aussi deviens un pro de la construction !" : "Toi aussi deviens un pro de la construction !",
           })
           console.log("File shared successfully")
         } else {
